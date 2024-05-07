@@ -1,0 +1,9 @@
+django
+flask
+numpy
+pandas
+jupyter
+notebook
+jupyterlab
+polars
+pyarrow
