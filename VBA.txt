@@ -1,10 +1,12 @@
-Certainly! You can use the MSXML2.ServerXMLHTTP60 library to connect to the XMLA server and execute an MDX query. Below is an optimized VBA code that fetches data using CellSet and pastes it into an Excel sheet.
+To include the User ID and Password for the XMLA connection, you need to modify the HTTP request to include the necessary authentication headers. Assuming you're using basic authentication, you can encode the credentials and add them to the request header.
 
-To make the code run efficiently, we ensure that we minimize interactions with Excel objects inside loops.
+Here are the steps:
 
-Firstly, ensure you have enabled the reference to "Microsoft XML, v6.0" in your VBA editor (Tools > References).
+1. Encode your `User ID` and `Password` using Base64 encoding.
+2. Create the authentication header with the encoded credentials.
+3. Add the header to your HTTP request.
 
-Here is the optimized VBA code:
+Here is how you can modify the code to include the User ID and password:
 
 ```vba
 Option Explicit
@@ -19,10 +21,22 @@ Sub FetchMDXData()
     Dim i As Long, j As Long
     Dim rowIndex As Long
     Dim ws As Worksheet
-    
+    Dim userName As String
+    Dim password As String
+    Dim authHeader As String
+    Dim base64Credentials As String
+
     ' Define the XMLA server URL and the MDX query
     xmlaServer = "YOUR_XMLA_SERVER_URL"
     mdxQuery = "YOUR_MDX_QUERY_HERE"
+    
+    ' Define your credentials
+    userName = "YOUR_USER_ID"
+    password = "YOUR_PASSWORD"
+
+    ' Create the Base64 encoded credentials
+    base64Credentials = EncodeBase64(userName & ":" & password)
+    authHeader = "Basic " & base64Credentials
 
     ' Create the XML HTTP request
     Set httpRequest = New MSXML2.ServerXMLHTTP60
@@ -51,6 +65,7 @@ Sub FetchMDXData()
     With httpRequest
         .Open "POST", xmlaServer, False
         .setRequestHeader "Content-Type", "text/xml"
+        .setRequestHeader "Authorization", authHeader
         .send soapBody
     End With
 
@@ -90,26 +105,43 @@ Sub FetchMDXData()
     
     MsgBox "Data fetched successfully!", vbInformation
 End Sub
+
+' Function to encode the credentials using Base64 encoding
+Function EncodeBase64(inputStr As String) As String
+    Dim arrBytes() As Byte
+    Dim objXML As MSXML2.DOMDocument
+    Dim objNode As MSXML2.IXMLDOMElement
+
+    ' Convert string to byte array
+    arrBytes = StrConv(inputStr, vbFromUnicode)
+
+    ' Create XML document
+    Set objXML = New MSXML2.DOMDocument
+
+    ' Create base64 node
+    Set objNode = objXML.createElement("b64")
+    objNode.DataType = "bin.base64"
+    objNode.nodeTypedValue = arrBytes
+    EncodeBase64 = objNode.Text
+
+    ' Clean up
+    Set objNode = Nothing
+    Set objXML = Nothing
+End Function
 ```
 
 **Explanation:**
 
-1. **References:**
-   - Ensure the `Microsoft XML, v6.0` reference is enabled.
+1. **Credentials:**
+   - `userName` and `password` variables store your user credentials.
    
-2. **SOAP Request:**
-   - Constructs the SOAP envelope with necessary elements for the XMLA server query.
-   
-3. **HTTP Request:**
-   - Uses `MSXML2.ServerXMLHTTP60` to POST the request and fetch the response.
-   
-4. **Data Handling:**
-   - `MSXML2.DOMDocument60` loads the response.
-   - The `ADOMD.CellSet` object performs parsing and iteration over the result set.
-   
-5. **Optimization:**
-   - Fetches results in an array, then sets that array to the worksheet in one call, minimizing the use of the `Excel` object model inside loops.
+2. **Base64 Encoding:**
+   - The `EncodeBase64` function encodes the `userName` and `password` in Base64 format.
+   - The encoded credentials are then used to create an authorization header (`authHeader`).
 
-Replace `"YOUR_XMLA_SERVER_URL"`, `"YOUR_MDX_QUERY_HERE"`, and `"YOUR_CATALOG_HERE"` with the actual values for your XMLA server, MDX query, and catalog respectively.
+3. **Authorization Header:**
+   - `authHeader` is added to the `httpRequest` using `.setRequestHeader "Authorization", authHeader`.
 
-This approach ensures that the code runs as efficiently as possible with minimal time spent in the loop.
+Replace `"YOUR_XMLA_SERVER_URL"`, `"YOUR_MDX_QUERY_HERE"`, `"YOUR_CATALOG_HERE"`, `"YOUR_USER_ID"`, and `"YOUR_PASSWORD"` with the actual values for your XMLA server, MDX query, catalog, user ID, and password respectively.
+
+This ensures the request includes the necessary authentication details to connect to the XMLA server successfully.
