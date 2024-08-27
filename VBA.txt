@@ -1,0 +1,115 @@
+Certainly! You can use the MSXML2.ServerXMLHTTP60 library to connect to the XMLA server and execute an MDX query. Below is an optimized VBA code that fetches data using CellSet and pastes it into an Excel sheet.
+
+To make the code run efficiently, we ensure that we minimize interactions with Excel objects inside loops.
+
+Firstly, ensure you have enabled the reference to "Microsoft XML, v6.0" in your VBA editor (Tools > References).
+
+Here is the optimized VBA code:
+
+```vba
+Option Explicit
+
+Sub FetchMDXData()
+    Dim xmlaServer As String
+    Dim mdxQuery As String
+    Dim httpRequest As MSXML2.ServerXMLHTTP60
+    Dim responseXML As MSXML2.DOMDocument60
+    Dim cellset As Object
+    Dim data As Variant
+    Dim i As Long, j As Long
+    Dim rowIndex As Long
+    Dim ws As Worksheet
+    
+    ' Define the XMLA server URL and the MDX query
+    xmlaServer = "YOUR_XMLA_SERVER_URL"
+    mdxQuery = "YOUR_MDX_QUERY_HERE"
+
+    ' Create the XML HTTP request
+    Set httpRequest = New MSXML2.ServerXMLHTTP60
+
+    ' Craft the XMLA request body
+    Dim soapBody As String
+    soapBody = "<Envelope xmlns='http://schemas.xmlsoap.org/soap/envelope/'>" & _
+               "<Body>" & _
+               "<Execute xmlns='urn:schemas-microsoft-com:xml-analysis'>" & _
+               "<Command>" & _
+               "<Statement>" & mdxQuery & "</Statement>" & _
+               "</Command>" & _
+               "<Properties>" & _
+               "<PropertyList>" & _
+               "<DataSourceInfo>Provider=MSOLAP;Data Source=" & xmlaServer & "</DataSourceInfo>" & _
+               "<Catalog>YOUR_CATALOG_HERE</Catalog>" & _
+               "<Format>Multidimensional</Format>" & _
+               "<AxisFormat>TupleFormat</AxisFormat>" & _
+               "</PropertyList>" & _
+               "</Properties>" & _
+               "</Execute>" & _
+               "</Body>" & _
+               "</Envelope>"
+
+    ' Send the request
+    With httpRequest
+        .Open "POST", xmlaServer, False
+        .setRequestHeader "Content-Type", "text/xml"
+        .send soapBody
+    End With
+
+    ' Load the response into a DOMDocument
+    Set responseXML = New MSXML2.DOMDocument60
+    responseXML.LoadXML httpRequest.responseText
+
+    ' Set up the worksheet
+    Set ws = ThisWorkbook.Sheets("Sheet1")
+    ws.Cells.ClearContents
+    rowIndex = 1
+
+    ' Load the CellSet from the response
+    Set cellset = CreateObject("ADOMD.CellSet")
+    cellset.Open responseXML.XML
+
+    ' Redimension array to fetch results first, optimizing the loop
+    ReDim data(1 To cellset.Axes(1).Positions.Count, 1 To cellset.Axes(0).Positions.Count)
+    
+    ' Fetch MDX data into the array
+    For i = 0 To cellset.Axes(1).Positions.Count - 1
+        For j = 0 To cellset.Axes(0).Positions.Count - 1
+            data(i + 1, j + 1) = cellset(i, j).Value
+        Next j
+    Next i
+    
+    ' Place array into Excel sheet in a single step, minimizing Excel interaction
+    ws.Range(ws.Cells(1, 1), ws.Cells(UBound(data, 1), UBound(data, 2))).Value = data
+
+    ' Close the CellSet
+    cellset.Close
+
+    ' Clear the objects
+    Set cellset = Nothing
+    Set responseXML = Nothing
+    Set httpRequest = Nothing
+    
+    MsgBox "Data fetched successfully!", vbInformation
+End Sub
+```
+
+**Explanation:**
+
+1. **References:**
+   - Ensure the `Microsoft XML, v6.0` reference is enabled.
+   
+2. **SOAP Request:**
+   - Constructs the SOAP envelope with necessary elements for the XMLA server query.
+   
+3. **HTTP Request:**
+   - Uses `MSXML2.ServerXMLHTTP60` to POST the request and fetch the response.
+   
+4. **Data Handling:**
+   - `MSXML2.DOMDocument60` loads the response.
+   - The `ADOMD.CellSet` object performs parsing and iteration over the result set.
+   
+5. **Optimization:**
+   - Fetches results in an array, then sets that array to the worksheet in one call, minimizing the use of the `Excel` object model inside loops.
+
+Replace `"YOUR_XMLA_SERVER_URL"`, `"YOUR_MDX_QUERY_HERE"`, and `"YOUR_CATALOG_HERE"` with the actual values for your XMLA server, MDX query, and catalog respectively.
+
+This approach ensures that the code runs as efficiently as possible with minimal time spent in the loop.
