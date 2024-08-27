@@ -1,147 +1,104 @@
-To include the User ID and Password for the XMLA connection, you need to modify the HTTP request to include the necessary authentication headers. Assuming you're using basic authentication, you can encode the credentials and add them to the request header.
+Certainly! Below is an optimized VBA code to connect to an XMLA server, run an MDX query, and paste the results into an Excel sheet. This script utilizes the `MSXML2.ServerXMLHTTP` library to handle the XMLA connection and fetch the query results. Make sure you have the necessary references added for MSXML2 in your VBA environment.
 
-Here are the steps:
-
-1. Encode your `User ID` and `Password` using Base64 encoding.
-2. Create the authentication header with the encoded credentials.
-3. Add the header to your HTTP request.
-
-Here is how you can modify the code to include the User ID and password:
+Here's the VBA code for the specified task:
 
 ```vba
-Option Explicit
-
-Sub FetchMDXData()
-    Dim xmlaServer As String
+Sub FetchMDXQueryResults()
+    ' Declare necessary variables
+    Dim xmlaURL As String
+    Dim username As String
+    Dim password As String
     Dim mdxQuery As String
-    Dim httpRequest As MSXML2.ServerXMLHTTP60
-    Dim responseXML As MSXML2.DOMDocument60
-    Dim cellset As Object
-    Dim data As Variant
-    Dim i As Long, j As Long
+    Dim xmlhttp As Object
+    Dim responseText As String
+    Dim xmlDoc As Object
+    Dim xmlNode As Object
+    Dim colIndex As Long
     Dim rowIndex As Long
     Dim ws As Worksheet
-    Dim userName As String
-    Dim password As String
-    Dim authHeader As String
-    Dim base64Credentials As String
-
-    ' Define the XMLA server URL and the MDX query
-    xmlaServer = "YOUR_XMLA_SERVER_URL"
-    mdxQuery = "YOUR_MDX_QUERY_HERE"
     
-    ' Define your credentials
-    userName = "YOUR_USER_ID"
-    password = "YOUR_PASSWORD"
-
-    ' Create the Base64 encoded credentials
-    base64Credentials = EncodeBase64(userName & ":" & password)
-    authHeader = "Basic " & base64Credentials
-
-    ' Create the XML HTTP request
-    Set httpRequest = New MSXML2.ServerXMLHTTP60
-
-    ' Craft the XMLA request body
-    Dim soapBody As String
-    soapBody = "<Envelope xmlns='http://schemas.xmlsoap.org/soap/envelope/'>" & _
-               "<Body>" & _
-               "<Execute xmlns='urn:schemas-microsoft-com:xml-analysis'>" & _
-               "<Command>" & _
-               "<Statement>" & mdxQuery & "</Statement>" & _
-               "</Command>" & _
-               "<Properties>" & _
-               "<PropertyList>" & _
-               "<DataSourceInfo>Provider=MSOLAP;Data Source=" & xmlaServer & "</DataSourceInfo>" & _
-               "<Catalog>YOUR_CATALOG_HERE</Catalog>" & _
-               "<Format>Multidimensional</Format>" & _
-               "<AxisFormat>TupleFormat</AxisFormat>" & _
-               "</PropertyList>" & _
-               "</Properties>" & _
-               "</Execute>" & _
-               "</Body>" & _
-               "</Envelope>"
-
-    ' Send the request
-    With httpRequest
-        .Open "POST", xmlaServer, False
-        .setRequestHeader "Content-Type", "text/xml"
-        .setRequestHeader "Authorization", authHeader
-        .send soapBody
-    End With
-
-    ' Load the response into a DOMDocument
-    Set responseXML = New MSXML2.DOMDocument60
-    responseXML.LoadXML httpRequest.responseText
-
-    ' Set up the worksheet
+    ' Initialize variables
+    xmlaURL = "http://your_xmla_server_link"
+    username = "your_username"
+    password = "your_password"
+    mdxQuery = "YOUR_MDX_QUERY"
+    
+    ' Set the worksheet to paste the results
     Set ws = ThisWorkbook.Sheets("Sheet1")
-    ws.Cells.ClearContents
+    ws.Cells.Clear ' Clear existing data on the sheet
+    
+    ' Initialize XMLHTTP and execute the query
+    Set xmlhttp = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    
+    ' Prepare the SOAP request
+    Dim soapEnvelope As String
+    soapEnvelope = _
+    "<SOAP-ENV:Envelope xmlns:SOAP-ENV='http://schemas.xmlsoap.org/soap/envelope/' " & _
+        "xmlns:xsi='http://www.w3.org/2001/XMLSchema-instance' " & _
+        "xmlns:xsd='http://www.w3.org/2001/XMLSchema'>" & _
+    "<SOAP-ENV:Body>" & _
+        "<Execute xmlns='urn:schemas-microsoft-com:xml-analysis'>" & _
+            "<Command>" & _
+                "<Statement>" & mdxQuery & "</Statement>" & _
+            "</Command>" & _
+            "<Properties>" & _
+                "<PropertyList>" & _
+                    "<Catalog>YourCatalogName</Catalog>" & _
+                "</PropertyList>" & _
+            "</Properties>" & _
+        "</Execute>" & _
+    "</SOAP-ENV:Body>" & _
+    "</SOAP-ENV:Envelope>"
+    
+    ' Send the request
+    With xmlhttp
+        .Open "POST", xmlaURL, False, username, password
+        .setRequestHeader "Content-Type", "text/xml"
+        .setRequestHeader "SOAPAction", "urn:schemas-microsoft-com:xml-analysis:Execute"
+        .send soapEnvelope
+        responseText = .responseText
+    End With
+    
+    ' Load the response into an XML document
+    Set xmlDoc = CreateObject("MSXML2.DOMDocument.6.0")
+    xmlDoc.LoadXML responseText
+
+    'Parse the XML and fetch data (modify based on your XML response structure)
+    Dim cellData As String
+    Dim cellNode As Object
+    Set xmlNode = xmlDoc.SelectSingleNode("//Axis[@name='Axis0']/Tuples/Tuple/Member")
+    
+    ' Loop through the XML and populate the worksheet
     rowIndex = 1
-
-    ' Load the CellSet from the response
-    Set cellset = CreateObject("ADOMD.CellSet")
-    cellset.Open responseXML.XML
-
-    ' Redimension array to fetch results first, optimizing the loop
-    ReDim data(1 To cellset.Axes(1).Positions.Count, 1 To cellset.Axes(0).Positions.Count)
+    colIndex = 1
     
-    ' Fetch MDX data into the array
-    For i = 0 To cellset.Axes(1).Positions.Count - 1
-        For j = 0 To cellset.Axes(0).Positions.Count - 1
-            data(i + 1, j + 1) = cellset(i, j).Value
-        Next j
-    Next i
+    For Each cellNode In xmlDoc.SelectNodes("//CellData/Cell")
+        ws.Cells(rowIndex, colIndex).Value = cellNode.SelectSingleNode("Value").Text
+        rowIndex = rowIndex + 1
+        
+        ' Reset rowIndex and increment colIndex for new column in results
+        If rowIndex > 100 Then ' Assuming 100 rows of data before moving to next column; adjust accordingly
+            rowIndex = 1
+            colIndex = colIndex + 1
+        End If
+    Next cellNode
     
-    ' Place array into Excel sheet in a single step, minimizing Excel interaction
-    ws.Range(ws.Cells(1, 1), ws.Cells(UBound(data, 1), UBound(data, 2))).Value = data
-
-    ' Close the CellSet
-    cellset.Close
-
-    ' Clear the objects
-    Set cellset = Nothing
-    Set responseXML = Nothing
-    Set httpRequest = Nothing
-    
-    MsgBox "Data fetched successfully!", vbInformation
-End Sub
-
-' Function to encode the credentials using Base64 encoding
-Function EncodeBase64(inputStr As String) As String
-    Dim arrBytes() As Byte
-    Dim objXML As MSXML2.DOMDocument
-    Dim objNode As MSXML2.IXMLDOMElement
-
-    ' Convert string to byte array
-    arrBytes = StrConv(inputStr, vbFromUnicode)
-
-    ' Create XML document
-    Set objXML = New MSXML2.DOMDocument
-
-    ' Create base64 node
-    Set objNode = objXML.createElement("b64")
-    objNode.DataType = "bin.base64"
-    objNode.nodeTypedValue = arrBytes
-    EncodeBase64 = objNode.Text
-
     ' Clean up
-    Set objNode = Nothing
-    Set objXML = Nothing
-End Function
+    Set xmlhttp = Nothing
+    Set xmlDoc = Nothing
+    Set xmlNode = Nothing
+    Set ws = Nothing
+    
+    MsgBox "Data fetch complete!", vbInformation
+End Sub
 ```
 
-**Explanation:**
+### Explanation:
+1. **Initialization**: Set up the XMLA server link, username, password, and MDX query.
+2. **SOAP Request Preparation**: Prepare the SOAP request envelope with the provided MDX query.
+3. **XMLHTTP Request**: Send the request using `MSXML2.ServerXMLHTTP` and receive the response.
+4. **XML Parsing**: Load the response XML into an `MSXML2.DOMDocument` object and parse the necessary data nodes.
+5. **Data Population**: Loop through the parsed XML nodes and write the results into Excel cells efficiently.
+6. **Cleanup**: Clean up objects to free memory.
 
-1. **Credentials:**
-   - `userName` and `password` variables store your user credentials.
-   
-2. **Base64 Encoding:**
-   - The `EncodeBase64` function encodes the `userName` and `password` in Base64 format.
-   - The encoded credentials are then used to create an authorization header (`authHeader`).
-
-3. **Authorization Header:**
-   - `authHeader` is added to the `httpRequest` using `.setRequestHeader "Authorization", authHeader`.
-
-Replace `"YOUR_XMLA_SERVER_URL"`, `"YOUR_MDX_QUERY_HERE"`, `"YOUR_CATALOG_HERE"`, `"YOUR_USER_ID"`, and `"YOUR_PASSWORD"` with the actual values for your XMLA server, MDX query, catalog, user ID, and password respectively.
-
-This ensures the request includes the necessary authentication details to connect to the XMLA server successfully.
+Please adjust the XML parsing section (`SelectSingleNode` paths) according to the structure of your specific XMLA response. The provided example assumes a simple structure for illustration purposes.
